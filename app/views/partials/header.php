@@ -1,3 +1,22 @@
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+$isLoggedIn = isset($_SESSION['user_id']);
+$isAdmin = isset($_SESSION['is_admin']) && (int)$_SESSION['is_admin'] === 1;
+
+$prenom = $_SESSION['prenom'] ?? $_SESSION['user_prenom'] ?? '';
+$nom = $_SESSION['nom'] ?? $_SESSION['user_nom'] ?? '';
+$email = $_SESSION['email'] ?? '';
+
+$displayName = trim($prenom . ' ' . $nom);
+if ($displayName === '') {
+    $displayName = $email !== '' ? $email : 'Utilisateur';
+}
+
+$initial = mb_strtoupper(mb_substr($displayName, 0, 1, 'UTF-8'), 'UTF-8');
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -15,25 +34,48 @@
       <h2><strong>ITEAM</strong> QUALITY</h2>
     </a>
 
-    <?php if (isset($_SESSION['user_id'])): ?>
+    <?php if ($isLoggedIn): ?>
       <div class="profile-menu">
         <button class="profile-btn" id="profileBtn" type="button">
-          <span class="profile-avatar">👤</span>
-          <span class="profile-name">
-            <?= htmlspecialchars(($_SESSION['user_prenom'] ?? '') . ' ' . ($_SESSION['user_nom'] ?? '')) ?>
+          <span class="profile-avatar"><?= htmlspecialchars($initial) ?></span>
+
+          <span class="profile-meta">
+            <span class="profile-name"><?= htmlspecialchars($displayName) ?></span>
           </span>
+
           <span class="profile-chevron">▼</span>
         </button>
 
         <div class="profile-dropdown" id="profileDropdown">
-          <a href="index.php?page=my_result" class="dropdown-link">Mon résultat</a>
+          <div class="dropdown-head">
+            <?php if ($email !== ''): ?>
+              <div class="dropdown-user-email">
+                <?= htmlspecialchars($email) ?>
+              </div>
+            <?php endif; ?>
+          </div>
 
-          <?php if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1): ?>
-            <a href="index.php?page=admin_results" class="dropdown-link">Admin</a>
+          <a href="index.php?page=home" class="dropdown-link">Accueil</a>
+
+          <?php if (!$isAdmin): ?>
+            <a href="index.php?page=my_result" class="dropdown-link">Ma correction</a>
+          <?php endif; ?>
+
+          <?php if ($isAdmin): ?>
+            <a href="index.php?page=quiz_preview" class="dropdown-link">Gérer le quiz</a>
+            <a href="index.php?page=admin_access_keys" class="dropdown-link">Clés d'accès</a>
+            <a href="index.php?page=admin_users" class="dropdown-link">Gestion des utilisateurs</a>
+            <a href="index.php?page=admin_results" class="dropdown-link">Résultats</a>
+            <a href="index.php?page=admin_stats" class="dropdown-link">Statistiques</a>
           <?php endif; ?>
 
           <a href="index.php?page=logout" class="dropdown-link logout-item">Déconnexion</a>
         </div>
+      </div>
+    <?php else: ?>
+      <div class="header-public-links">
+        <a href="index.php?page=access_login" class="login-btn">Connexion candidat</a>
+        <a href="index.php?page=admin_login" class="admin-link">Admin</a>
       </div>
     <?php endif; ?>
   </header>
@@ -51,6 +93,12 @@
 
         document.addEventListener('click', function () {
           profileDropdown.classList.remove('show');
+        });
+
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') {
+            profileDropdown.classList.remove('show');
+          }
         });
       }
     });

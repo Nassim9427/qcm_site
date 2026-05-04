@@ -11,128 +11,148 @@ class QuizResult
 
     public function hasUserAlreadyTakenQuiz($userId)
     {
-        $sql = "SELECT COUNT(*) FROM results WHERE user_id = :user_id";
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute(['user_id' => $userId]);
-
-        return $stmt->fetchColumn() > 0;
+        $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM quiz_results WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        return (int)$stmt->fetchColumn() > 0;
     }
 
     public function create($userId, $score, $totalQuestions)
     {
-        $sql = "INSERT INTO results (user_id, score, total_questions)
-                VALUES (:user_id, :score, :total_questions)";
+        $stmt = $this->pdo->prepare("
+            INSERT INTO quiz_results (user_id, score, total_questions)
+            VALUES (?, ?, ?)
+        ");
+        $stmt->execute([$userId, $score, $totalQuestions]);
 
-        $stmt = $this->pdo->prepare($sql);
+        return (int)$this->pdo->lastInsertId();
+    }
 
-        $stmt->execute([
-            'user_id' => $userId,
-            'score' => $score,
-            'total_questions' => $totalQuestions
-        ]);
+    public function createOrReplace($userId, $score, $totalQuestions)
+    {
+        $existing = $this->getResultByUserId($userId);
 
-        return $this->pdo->lastInsertId();
+        if ($existing) {
+            $resultId = (int)$existing['id'];
+
+            $deleteAnswers = $this->pdo->prepare("DELETE FROM quiz_answers WHERE result_id = ?");
+            $deleteAnswers->execute([$resultId]);
+
+            $update = $this->pdo->prepare("
+                UPDATE quiz_results
+                SET score = ?, total_questions = ?, created_at = NOW()
+                WHERE id = ?
+            ");
+            $update->execute([$score, $totalQuestions, $resultId]);
+
+            return $resultId;
+        }
+
+        return $this->create($userId, $score, $totalQuestions);
     }
 
     public function saveAnswer($resultId, $questionKey, $answerGiven, $correctAnswer, $isCorrect)
     {
-        $sql = "INSERT INTO quiz_answers (result_id, question_key, answer_given, correct_answer, is_correct)
-                VALUES (:result_id, :question_key, :answer_given, :correct_answer, :is_correct)";
-
-        $stmt = $this->pdo->prepare($sql);
-
-        return $stmt->execute([
-            'result_id' => $resultId,
-            'question_key' => $questionKey,
-            'answer_given' => $answerGiven,
-            'correct_answer' => $correctAnswer,
-            'is_correct' => $isCorrect ? 1 : 0
+        $stmt = $this->pdo->prepare("
+            INSERT INTO quiz_answers (result_id, question_key, answer_given, correct_answer, is_correct)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $resultId,
+            $questionKey,
+            $answerGiven,
+            $correctAnswer,
+            $isCorrect ? 1 : 0
         ]);
+    }
+
+    public function getResultByUserId($userId)
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT * FROM quiz_results
+            WHERE user_id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$userId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
     public function getAllResultsWithFilters($nom = '', $prenom = '', $email = '')
     {
-        $sql = "SELECT 
-                    results.id,
-                    results.user_id,
-                    users.nom,
-                    users.prenom,
-                    users.email,
-                    results.score,
-                    results.total_questions,
-                    results.created_at
-                FROM results
-                INNER JOIN users ON results.user_id = users.id
-                WHERE users.nom LIKE :nom
-                  AND users.prenom LIKE :prenom
-                  AND users.email LIKE :email
-                ORDER BY results.created_at DESC";
+        $sql = "
+            SELECT qr.*, u.nom, u.prenom, u.email
+            FROM quiz_results qr
+            JOIN users u ON qr.user_id = u.id
+            WHERE 1=1
+        ";
+
+        $params = [];
+
+        if ($nom !== '') {
+            $sql .= " AND u.nom LIKE ?";
+            $params[] = '%' . $nom . '%';
+        }
+
+        if ($prenom !== '') {
+            $sql .= " AND u.prenom LIKE ?";
+            $params[] = '%' . $prenom . '%';
+        }
+
+        if ($email !== '') {
+            $sql .= " AND u.email LIKE ?";
+            $params[] = '%' . $email . '%';
+        }
+
+        $sql .= " ORDER BY qr.score DESC, qr.created_at DESC";
 
         $stmt = $this->pdo->prepare($sql);
-
-        $stmt->execute([
-            'nom' => '%' . $nom . '%',
-            'prenom' => '%' . $prenom . '%',
-            'email' => '%' . $email . '%'
-        ]);
+        $stmt->execute($params);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function getAnswersByResultId($resultId)
     {
-        $sql = "SELECT *
-                FROM quiz_answers
-                WHERE result_id = :result_id
-                ORDER BY id ASC";
-
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute(['result_id' => $resultId]);
-
+        $stmt = $this->pdo->prepare("
+            SELECT * FROM quiz_answers
+            WHERE result_id = ?
+            ORDER BY id ASC
+        ");
+        $stmt->execute([$resultId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function getStats()
     {
-        $sql = "SELECT 
-                    COUNT(*) AS total_tests,
-                    AVG(score) AS moyenne_score,
-                    MAX(score) AS meilleur_score
-                FROM results";
-
-        $stmt = $this->pdo->query($sql);
+        $stmt = $this->pdo->query("
+            SELECT
+                COUNT(*) as total_participants,
+                AVG(score) as average_score,
+                MAX(score) as best_score,
+                MIN(score) as worst_score
+            FROM quiz_results
+        ");
 
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
+    // 🔥 FIX ICI → AJOUT DU EMAIL
     public function getRanking()
     {
-        $sql = "SELECT 
-                    users.nom,
-                    users.prenom,
-                    users.email,
-                    results.score,
-                    results.total_questions,
-                    results.created_at
-                FROM results
-                INNER JOIN users ON results.user_id = users.id
-                ORDER BY results.score DESC, results.created_at ASC";
-
-        $stmt = $this->pdo->query($sql);
+        $stmt = $this->pdo->query("
+            SELECT 
+                qr.id,
+                qr.user_id,
+                qr.score,
+                qr.total_questions,
+                qr.created_at,
+                u.nom,
+                u.prenom,
+                u.email
+            FROM quiz_results qr
+            INNER JOIN users u ON qr.user_id = u.id
+            ORDER BY qr.score DESC, qr.created_at ASC
+        ");
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    public function getResultByUserId($userId)
-    {
-        $sql = "SELECT *
-                FROM results
-                WHERE user_id = :user_id
-                LIMIT 1";
-
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute(['user_id' => $userId]);
-
-        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 }

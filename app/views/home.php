@@ -34,30 +34,48 @@
       <?php unset($_SESSION['quiz_error']); ?>
     <?php endif; ?>
 
-    <?php if (isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1): ?>
-      <a href="index.php?page=quiz_preview" class="btn-start" style="margin-bottom: 14px;">
-        Voir le quiz
-      </a>
-    <?php endif; ?>
+    <?php $isAdmin = isset($_SESSION['is_admin']) && (int)$_SESSION['is_admin'] === 1; ?>
 
-    <?php if (empty($quizAlreadyTaken)): ?>
-      <a href="index.php?page=instructions" class="btn-start">
-        Commence le quiz
-      </a>
-    <?php else: ?>
+    <?php if ($isAdmin): ?>
       <div style="
-        margin-top: 15px;
-        margin-bottom: 26px;
-        background: #e5e7eb;
-        color: #374151;
-        padding: 14px 34px;
-        border-radius: 999px;
-        font-size: 16px;
-        font-weight: 700;
-        display: inline-block;
+        display:flex;
+        flex-direction:column;
+        gap:14px;
+        align-items:center;
+        margin-bottom:14px;
       ">
-        Test déjà effectué
+        <a href="index.php?page=quiz_preview" class="btn-start">
+          Voir le quiz
+        </a>
+
+        <a href="index.php?page=admin_access_keys" class="btn-start">
+          Gérer les clés d'accès
+        </a>
+
+        <a href="index.php?page=instructions" class="btn-start">
+          Commence le quiz
+        </a>
       </div>
+    <?php else: ?>
+      <?php if (empty($quizAlreadyTaken)): ?>
+        <a href="index.php?page=instructions" class="btn-start">
+          Commence le quiz
+        </a>
+      <?php else: ?>
+        <div style="
+          margin-top: 15px;
+          margin-bottom: 26px;
+          background: #e5e7eb;
+          color: #374151;
+          padding: 14px 34px;
+          border-radius: 999px;
+          font-size: 16px;
+          font-weight: 700;
+          display: inline-block;
+        ">
+          Test déjà effectué
+        </div>
+      <?php endif; ?>
     <?php endif; ?>
   </section>
 
