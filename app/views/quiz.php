@@ -39,6 +39,17 @@
             box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
         }
 
+        .anti-cheat-warning-box {
+            background: #fff7ed;
+            border: 1px solid #fdba74;
+            color: #9a3412;
+            border-radius: 14px;
+            padding: 14px 16px;
+            margin-bottom: 22px;
+            font-weight: 700;
+            line-height: 1.5;
+        }
+
         .question-block {
             margin-bottom: 30px;
             padding-bottom: 24px;
@@ -173,7 +184,14 @@
     <div class="quiz-container">
         <div class="quiz-header">
             <h1>Quiz</h1>
-            <div class="quiz-timer" id="timer"><?= gmdate('i:s', max(0, (int)$remainingSeconds)) ?></div>
+            <div class="quiz-timer" id="timer">--:--</div>
+        </div>
+
+        <div class="anti-cheat-warning-box" id="anti-cheat-box">
+            Attention : si vous quittez l’onglet ou la fenêtre du quiz, vous aurez 2 avertissements.
+            À la 3e fois, le quiz sera envoyé automatiquement.
+            <br>
+            Avertissements : <span id="anti-cheat-count">0</span>/2
         </div>
 
         <form id="quiz-form" method="POST" action="index.php?page=submit_quiz" autocomplete="off">
@@ -222,19 +240,34 @@
             <img src="" alt="Image agrandie" id="image-modal-img">
         </div>
     </div>
+
 <script>
     let tempsRestant = <?= (int)$remainingSeconds ?>;
+
     const timerElement = document.getElementById('timer');
     const quizForm = document.getElementById('quiz-form');
     const submitBtn = document.getElementById('submit-btn');
+    const antiCheatCountElement = document.getElementById('anti-cheat-count');
 
     let quizDejaEnvoye = false;
     let timerInterval = null;
-    let antiCheatTriggered = false;
+
+    let antiCheatWarnings = 0;
+    const maxAntiCheatWarnings = 2;
+    let antiCheatAlertOpen = false;
+    let ignoreAntiCheatUntil = 0;
 
     function formatTemps(secondesTotales) {
-        const minutes = Math.floor(secondesTotales / 60);
+        const heures = Math.floor(secondesTotales / 3600);
+        const minutes = Math.floor((secondesTotales % 3600) / 60);
         const secondes = secondesTotales % 60;
+
+        if (heures > 0) {
+            return String(heures).padStart(2, '0') + ':' +
+                String(minutes).padStart(2, '0') + ':' +
+                String(secondes).padStart(2, '0');
+        }
+
         return String(minutes).padStart(2, '0') + ':' + String(secondes).padStart(2, '0');
     }
 
@@ -254,14 +287,58 @@
         quizForm.submit();
     }
 
-    function envoyerQuizPourTriche(message) {
-        if (quizDejaEnvoye || antiCheatTriggered) {
+    function updateAntiCheatDisplay() {
+        if (antiCheatCountElement) {
+            antiCheatCountElement.textContent = antiCheatWarnings;
+        }
+    }
+
+    function gererTentativeAntiTriche(raison) {
+        if (quizDejaEnvoye) {
             return;
         }
 
-        antiCheatTriggered = true;
+        const now = Date.now();
 
-        alert(message);
+        if (antiCheatAlertOpen || now < ignoreAntiCheatUntil) {
+            return;
+        }
+
+        const modal = document.getElementById('image-modal');
+
+        if (modal && modal.classList.contains('open')) {
+            return;
+        }
+
+        antiCheatWarnings++;
+        updateAntiCheatDisplay();
+
+        if (antiCheatWarnings <= maxAntiCheatWarnings) {
+            antiCheatAlertOpen = true;
+
+            alert(
+                "Attention : vous avez quitté la page ou la fenêtre du quiz.\n\n" +
+                "Raison détectée : " + raison + "\n\n" +
+                "Avertissement " + antiCheatWarnings + "/2.\n" +
+                "À la 3e fois, le quiz sera envoyé automatiquement."
+            );
+
+            ignoreAntiCheatUntil = Date.now() + 1500;
+
+            setTimeout(function () {
+                antiCheatAlertOpen = false;
+            }, 300);
+
+            return;
+        }
+
+        antiCheatAlertOpen = true;
+
+        alert(
+            "Troisième sortie détectée.\n\n" +
+            "Le quiz va être envoyé automatiquement."
+        );
+
         envoyerQuiz();
     }
 
@@ -323,6 +400,7 @@
         modal.classList.add('open');
         modal.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
+        ignoreAntiCheatUntil = Date.now() + 800;
     }
 
     function closeImageModal() {
@@ -330,6 +408,7 @@
         modal.setAttribute('aria-hidden', 'true');
         modalImg.src = '';
         document.body.style.overflow = '';
+        ignoreAntiCheatUntil = Date.now() + 800;
     }
 
     zoomableImages.forEach(function (image) {
@@ -403,13 +482,13 @@
 
     document.addEventListener('visibilitychange', function () {
         if (document.hidden) {
-            envoyerQuizPourTriche("Le quiz a été envoyé automatiquement car vous avez quitté l’onglet.");
+            gererTentativeAntiTriche("changement d’onglet ou réduction du navigateur");
         }
     });
 
     window.addEventListener('blur', function () {
         if (!document.hidden) {
-            envoyerQuizPourTriche("Le quiz a été envoyé automatiquement car vous avez quitté la fenêtre du quiz.");
+            gererTentativeAntiTriche("sortie de la fenêtre du quiz");
         }
     });
 </script>

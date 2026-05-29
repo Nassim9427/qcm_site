@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connexion par clé</title>
+    <title>Code du test</title>
     <style>
         body {
             margin: 0;
@@ -17,7 +17,7 @@
             box-sizing: border-box;
         }
 
-        .access-card {
+        .test-code-card {
             width: 100%;
             max-width: 520px;
             background: white;
@@ -26,34 +26,36 @@
             box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
         }
 
-        .access-header {
+        .test-code-header {
             background: linear-gradient(135deg, #f97316, #fb923c);
             color: white;
             padding: 30px;
+            text-align: center;
         }
 
-        .access-header h1 {
+        .test-code-header h1 {
             margin: 0 0 8px;
-            font-size: 32px;
+            font-size: 30px;
         }
 
-        .access-header p {
+        .test-code-header p {
             margin: 0;
             opacity: 0.95;
+            line-height: 1.5;
         }
 
-        .access-body {
+        .test-code-body {
             padding: 28px;
         }
 
-        .access-label {
+        .test-code-label {
             display: block;
             font-weight: 700;
             margin-bottom: 8px;
             color: #111827;
         }
 
-        .access-input {
+        .test-code-input {
             width: 100%;
             box-sizing: border-box;
             padding: 14px 16px;
@@ -63,7 +65,7 @@
             font: inherit;
         }
 
-        .access-btn {
+        .test-code-btn {
             width: 100%;
             border: none;
             background: #f97316;
@@ -75,14 +77,7 @@
             box-shadow: 0 8px 18px rgba(249, 115, 22, 0.2);
         }
 
-        .access-note {
-            margin-top: 16px;
-            color: #4b5563;
-            font-size: 14px;
-            line-height: 1.6;
-        }
-
-        .access-error {
+        .test-code-error {
             background: #fee2e2;
             color: #991b1b;
             border: 1px solid #fca5a5;
@@ -92,59 +87,61 @@
             font-weight: 700;
         }
 
-        .admin-discreet-link-wrapper {
-            margin-top: 22px;
+        .test-code-back {
+            display: block;
             text-align: center;
-        }
-
-        .admin-discreet-link {
-            color: #9ca3af;
-            font-size: 13px;
+            margin-top: 18px;
+            color: #6b7280;
             text-decoration: none;
-            font-weight: 600;
-            transition: color 0.2s ease;
+            font-size: 14px;
+            font-weight: 700;
         }
 
-        .admin-discreet-link:hover {
+        .test-code-back:hover {
             color: #f97316;
             text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <div class="access-card">
-        <div class="access-header">
-            <h1>Connexion candidat</h1>
-            <p>Entrez votre email et votre clé d'accès reçue.</p>
+    <div class="test-code-card">
+        <div class="test-code-header">
+            <h1>Code du test</h1>
+            <p>
+                Vous allez accéder au test :<br>
+                <strong><?= htmlspecialchars($selectedTestLabel ?? 'Test ciblé') ?></strong>
+            </p>
         </div>
 
-        <div class="access-body">
-            <?php if (!empty($_SESSION['access_error'])): ?>
-                <div class="access-error">
-                    <?= htmlspecialchars($_SESSION['access_error']) ?>
+        <div class="test-code-body">
+            <?php if (!empty($_SESSION['test_code_error'])): ?>
+                <div class="test-code-error">
+                    <?= htmlspecialchars($_SESSION['test_code_error']) ?>
                 </div>
-                <?php unset($_SESSION['access_error']); ?>
+                <?php unset($_SESSION['test_code_error']); ?>
             <?php endif; ?>
 
-            <form method="POST" action="index.php?page=access_login_submit">
-                <label class="access-label">Email</label>
-                <input type="email" name="email" class="access-input" required placeholder="exemple@email.com">
+            <form method="POST" action="index.php?page=test_code_submit">
+                <input type="hidden" name="test" value="<?= htmlspecialchars($selectedTestMode ?? '') ?>">
 
-                <label class="access-label">Clé d'accès</label>
-                <input type="text" name="access_key" class="access-input" required placeholder="Ex : A1B2C3D4E5F6">
+                <label class="test-code-label">Code d'accès du test</label>
+                <input
+                    type="text"
+                    name="test_code"
+                    class="test-code-input"
+                    required
+                    placeholder="Ex : sql2026"
+                    autocomplete="off"
+                >
 
-                <button type="submit" class="access-btn">Continuer</button>
+                <button type="submit" class="test-code-btn">
+                    Valider le code
+                </button>
             </form>
 
-            <div class="access-note">
-                La clé d'accès est à usage unique. Une fois utilisée, elle ne peut plus servir à se reconnecter.
-            </div>
-
-            <div class="admin-discreet-link-wrapper">
-                <a href="index.php?page=admin_login" class="admin-discreet-link">
-                    Connexion admin
-                </a>
-            </div>
+            <a href="index.php?page=home" class="test-code-back">
+                Retour à l'accueil
+            </a>
         </div>
     </div>
 </body>

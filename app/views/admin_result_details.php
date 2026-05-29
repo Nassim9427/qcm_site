@@ -81,6 +81,120 @@ if ($resultId > 0) {
     }
 }
 
+function admin_result_build_notion_stats(array $corrections)
+{
+    $stats = [];
+
+    foreach ($corrections as $correction) {
+        $question = $correction['question'] ?? [];
+        $answer = $correction['answer'] ?? [];
+
+        $notion = trim((string)($question['notion'] ?? 'Non classée'));
+
+        if ($notion === '') {
+            $notion = 'Non classée';
+        }
+
+        if (!isset($stats[$notion])) {
+            $stats[$notion] = [
+                'notion' => $notion,
+                'total' => 0,
+                'correct' => 0,
+                'wrong' => 0,
+                'percentage' => 0,
+            ];
+        }
+
+        $stats[$notion]['total']++;
+
+        if (!empty($answer['is_correct'])) {
+            $stats[$notion]['correct']++;
+        } else {
+            $stats[$notion]['wrong']++;
+        }
+    }
+
+    foreach ($stats as &$stat) {
+        if ($stat['total'] > 0) {
+            $stat['percentage'] = round(($stat['correct'] / $stat['total']) * 100);
+        }
+    }
+    unset($stat);
+
+    uasort($stats, static function ($a, $b) {
+        return $b['percentage'] <=> $a['percentage'];
+    });
+
+    return array_values($stats);
+}
+
+function admin_result_split_strengths_weaknesses(array $notionStats)
+{
+    $strengths = [];
+    $weaknesses = [];
+
+    foreach ($notionStats as $stat) {
+        if ((int)$stat['total'] <= 0) {
+            continue;
+        }
+
+        if ((int)$stat['percentage'] >= 70) {
+            $strengths[] = $stat;
+        } else {
+            $weaknesses[] = $stat;
+        }
+    }
+
+    usort($strengths, static function ($a, $b) {
+        return $b['percentage'] <=> $a['percentage'];
+    });
+
+    usort($weaknesses, static function ($a, $b) {
+        return $a['percentage'] <=> $b['percentage'];
+    });
+
+    return [
+        'strengths' => $strengths,
+        'weaknesses' => $weaknesses,
+    ];
+}
+
+function admin_result_stat_color($percentage)
+{
+    if ($percentage >= 70) {
+        return [
+            'bg' => '#dcfce7',
+            'text' => '#166534',
+            'bar' => '#22c55e',
+            'label' => 'Point fort',
+            'emoji' => '✅',
+        ];
+    }
+
+    if ($percentage >= 50) {
+        return [
+            'bg' => '#fef9c3',
+            'text' => '#854d0e',
+            'bar' => '#eab308',
+            'label' => 'À consolider',
+            'emoji' => '⚠️',
+        ];
+    }
+
+    return [
+        'bg' => '#fee2e2',
+        'text' => '#991b1b',
+        'bar' => '#ef4444',
+        'label' => 'À retravailler',
+        'emoji' => '❌',
+    ];
+}
+
+$notionStats = admin_result_build_notion_stats($corrections);
+$strengthsAndWeaknesses = admin_result_split_strengths_weaknesses($notionStats);
+$strengths = $strengthsAndWeaknesses['strengths'];
+$weaknesses = $strengthsAndWeaknesses['weaknesses'];
+
 $score = isset($targetResult['score']) ? (int)$targetResult['score'] : 0;
 $totalQuestions = isset($targetResult['total_questions']) ? (int)$targetResult['total_questions'] : 0;
 $percentage = $totalQuestions > 0 ? round(($score / $totalQuestions) * 100) : 0;
@@ -214,6 +328,166 @@ if ($percentage >= 80) {
         </div>
     </section>
 
+    <?php if (!empty($notionStats)): ?>
+        <section style="
+            max-width: 1100px;
+            margin: 0 auto 30px;
+            background: white;
+            border-radius: 24px;
+            padding: 26px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+        ">
+            <h2 style="margin: 0 0 18px; color:#111827; font-size:28px;">
+                Analyse par notion
+            </h2>
+
+            <div style="
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: 18px;
+                margin-bottom: 28px;
+            ">
+                <div style="
+                    background: #f0fdf4;
+                    border: 1px solid #bbf7d0;
+                    border-radius: 18px;
+                    padding: 22px;
+                ">
+                    <h3 style="margin: 0 0 16px; font-size: 20px; color: #166534;">
+                        ✅ Points forts
+                    </h3>
+
+                    <?php if (!empty($strengths)): ?>
+                        <?php foreach ($strengths as $item): ?>
+                            <div style="
+                                background: white;
+                                border: 1px solid #dcfce7;
+                                border-radius: 14px;
+                                padding: 14px;
+                                margin-bottom: 12px;
+                            ">
+                                <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
+                                    <strong style="color:#111827;">
+                                        <?= htmlspecialchars($item['notion']) ?>
+                                    </strong>
+                                    <strong style="color:#166534;">
+                                        <?= (int)$item['percentage'] ?>%
+                                    </strong>
+                                </div>
+                                <div style="margin-top:6px; color:#4b5563; font-size:14px;">
+                                    <?= (int)$item['correct'] ?>/<?= (int)$item['total'] ?> bonne(s) réponse(s)
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <p style="margin:0; color:#166534; line-height:1.7;">
+                            Aucun point fort net pour le moment. Le candidat n’a pas encore dépassé 70% sur une notion.
+                        </p>
+                    <?php endif; ?>
+                </div>
+
+                <div style="
+                    background: #fff7ed;
+                    border: 1px solid #fed7aa;
+                    border-radius: 18px;
+                    padding: 22px;
+                ">
+                    <h3 style="margin: 0 0 16px; font-size: 20px; color: #c2410c;">
+                        ⚠️ Points faibles
+                    </h3>
+
+                    <?php if (!empty($weaknesses)): ?>
+                        <?php foreach ($weaknesses as $item): ?>
+                            <div style="
+                                background: white;
+                                border: 1px solid #fed7aa;
+                                border-radius: 14px;
+                                padding: 14px;
+                                margin-bottom: 12px;
+                            ">
+                                <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
+                                    <strong style="color:#111827;">
+                                        <?= htmlspecialchars($item['notion']) ?>
+                                    </strong>
+                                    <strong style="color:#c2410c;">
+                                        <?= (int)$item['percentage'] ?>%
+                                    </strong>
+                                </div>
+                                <div style="margin-top:6px; color:#4b5563; font-size:14px;">
+                                    <?= (int)$item['correct'] ?>/<?= (int)$item['total'] ?> bonne(s) réponse(s)
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <p style="margin:0; color:#166534; line-height:1.7;">
+                            Aucun point faible détecté. Toutes les notions évaluées sont au-dessus de 70%.
+                        </p>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <h3 style="margin: 0 0 16px; color:#111827; font-size:22px;">
+                Détail par notion
+            </h3>
+
+            <?php foreach ($notionStats as $stat): ?>
+                <?php $colors = admin_result_stat_color((int)$stat['percentage']); ?>
+
+                <div style="
+                    border: 1px solid #e5e7eb;
+                    border-radius: 16px;
+                    padding: 16px;
+                    margin-bottom: 14px;
+                    background: #f9fafb;
+                ">
+                    <div style="
+                        display:flex;
+                        justify-content:space-between;
+                        align-items:flex-start;
+                        gap:14px;
+                        flex-wrap:wrap;
+                        margin-bottom:12px;
+                    ">
+                        <div>
+                            <strong style="font-size:16px; color:#111827;">
+                                <?= htmlspecialchars($stat['notion']) ?>
+                            </strong>
+                            <div style="font-size:14px; color:#6b7280; margin-top:4px;">
+                                <?= (int)$stat['correct'] ?> bonne(s) réponse(s) sur <?= (int)$stat['total'] ?>
+                            </div>
+                        </div>
+
+                        <span style="
+                            background: <?= $colors['bg'] ?>;
+                            color: <?= $colors['text'] ?>;
+                            padding: 8px 12px;
+                            border-radius: 999px;
+                            font-weight: 800;
+                            font-size: 14px;
+                        ">
+                            <?= $colors['emoji'] ?> <?= htmlspecialchars($colors['label']) ?> · <?= (int)$stat['percentage'] ?>%
+                        </span>
+                    </div>
+
+                    <div style="
+                        width:100%;
+                        height:12px;
+                        background:#e5e7eb;
+                        border-radius:999px;
+                        overflow:hidden;
+                    ">
+                        <div style="
+                            width: <?= max(0, min(100, (int)$stat['percentage'])) ?>%;
+                            height:100%;
+                            background: <?= $colors['bar'] ?>;
+                            border-radius:999px;
+                        "></div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </section>
+    <?php endif; ?>
+
     <?php foreach ($corrections as $item): ?>
         <?php
             $question = $item['question'];
@@ -223,6 +497,11 @@ if ($percentage >= 80) {
             $statusText = $isCorrect ? 'Réponse correcte' : 'Réponse incorrecte';
             $statusBg = $isCorrect ? '#dbeadf' : '#efe5c8';
             $statusColor = $isCorrect ? '#2f7d32' : '#c26b00';
+            $questionNotion = trim((string)($question['notion'] ?? 'Non classée'));
+
+            if ($questionNotion === '') {
+                $questionNotion = 'Non classée';
+            }
         ?>
 
         <section style="
@@ -246,7 +525,30 @@ if ($percentage >= 80) {
                 font-size: 18px;
             ">
                 <div>❔ Question <?= (int)$item['number'] ?></div>
-                <div style="font-size:16px; font-weight:700;"><?= htmlspecialchars($questionTypeLabel) ?></div>
+
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <span style="
+                        background: rgba(255,255,255,0.18);
+                        color: white;
+                        padding: 7px 12px;
+                        border-radius: 999px;
+                        font-size: 14px;
+                        font-weight: 800;
+                    ">
+                        <?= htmlspecialchars($questionNotion) ?>
+                    </span>
+
+                    <span style="
+                        background: rgba(255,255,255,0.18);
+                        color: white;
+                        padding: 7px 12px;
+                        border-radius: 999px;
+                        font-size: 14px;
+                        font-weight: 800;
+                    ">
+                        <?= htmlspecialchars($questionTypeLabel) ?>
+                    </span>
+                </div>
             </div>
 
             <div style="padding: 22px;">

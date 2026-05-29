@@ -53,6 +53,16 @@ switch ($page) {
         $controller->instructions();
         break;
 
+    case 'test_code':
+        $controller = new QuizController();
+        $controller->showTestCode();
+        break;
+
+    case 'test_code_submit':
+        $controller = new QuizController();
+        $controller->submitTestCode();
+        break;
+
     case 'quiz':
         $controller = new QuizController();
         $controller->start();
@@ -78,6 +88,11 @@ switch ($page) {
         $controller->index();
         break;
 
+    case 'admin_user_results':
+        $controller = new AdminController();
+        $controller->userResults();
+        break;
+
     case 'admin_result_details':
         $controller = new AdminController();
         $controller->details();
@@ -101,6 +116,11 @@ switch ($page) {
     case 'admin_update_question':
         $controller = new AdminController();
         $controller->updateQuestion();
+        break;
+
+    case 'admin_bulk_update_questions':
+        $controller = new AdminController();
+        $controller->bulkUpdateQuestions();
         break;
 
     case 'admin_delete_question':
@@ -187,7 +207,23 @@ switch ($page) {
         $controller = new AdminInviteController();
         $controller->activate();
         break;
+    
+    
+    case 'admin_test_codes':
+        $controller = new AdminController();
+        $controller->testCodes();
+        break;
 
+    case 'admin_update_test_code':
+        $controller = new AdminController();
+        $controller->updateTestCode();
+        break;
+
+    case 'choose_test':
+        $controller = new QuizController();
+        $controller->chooseTest();
+        break;
+    
     default:
         http_response_code(404);
         echo "404 - Page non trouvée";

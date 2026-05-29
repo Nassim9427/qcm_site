@@ -35,7 +35,7 @@
                     Ce quiz est en mode examen.
                 </p>
                 <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
-                    <li>Le temps est limité à <strong>10 minutes</strong>.</li>
+                    <li>Le temps est limité à <strong>60 minutes</strong>.</li>
                     <li>Le chronomètre continue même si la page est actualisée.</li>
                     <li>Revenir en arrière ou essayer de contourner le quiz n’accorde pas de temps supplémentaire.</li>
                     <li>Si vous quittez l’onglet ou la fenêtre du quiz, le test peut être envoyé automatiquement.</li>

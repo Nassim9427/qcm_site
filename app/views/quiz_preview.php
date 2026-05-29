@@ -1,6 +1,16 @@
 <?php require __DIR__ . '/partials/header.php'; ?>
 
 <?php
+$notions = [
+    'Non classée',
+    'Gestion de projet - Agile et Cycle en V',
+    'SQL - Requêtes et logique',
+    'API - Webservices et échanges',
+    'MOA - Business Analyst',
+    'Technique et automatisation',
+    'Logique et cas pratiques',
+];
+
 function quiz_option_value($question, $letter)
 {
     if (empty($question['options'])) {
@@ -120,6 +130,18 @@ function quiz_option_value($question, $letter)
         box-shadow: 0 8px 18px rgba(249, 115, 22, 0.2);
     }
 
+    .quiz-admin-btn-secondary {
+        background: #e5e7eb;
+        color: #374151;
+        border: none;
+        padding: 14px 24px;
+        border-radius: 999px;
+        cursor: pointer;
+        font-weight: 700;
+        text-decoration: none;
+        display: inline-block;
+    }
+
     .quiz-delete-btn {
         background: #dc2626;
         color: white;
@@ -236,6 +258,17 @@ function quiz_option_value($question, $letter)
         font-size: 14px;
         font-weight: 700;
     }
+
+    .quiz-hidden {
+        display: none !important;
+    }
+
+    .quiz-filter-info {
+        max-width: 1100px;
+        margin: 0 auto 18px;
+        color: #4b5563;
+        font-weight: 700;
+    }
 </style>
 
 <main class="quiz-admin-page">
@@ -243,7 +276,7 @@ function quiz_option_value($question, $letter)
         <div class="quiz-admin-topbar">
             <div>
                 <h1 class="quiz-admin-title">Gestion du quiz</h1>
-                <p class="quiz-admin-subtitle">Ajoute, modifie ou supprime les questions directement depuis cette page.</p>
+                <p class="quiz-admin-subtitle">Ajoute, modifie, filtre ou supprime les questions directement depuis cette page.</p>
             </div>
 
             <a href="index.php?page=home" class="quiz-admin-home-btn">
@@ -275,6 +308,17 @@ function quiz_option_value($question, $letter)
                         <select name="question_type" class="quiz-admin-select">
                             <option value="qcm">QCM</option>
                             <option value="text">Texte</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="quiz-admin-label">Notion</label>
+                        <select name="notion" class="quiz-admin-select">
+                            <?php foreach ($notions as $notion): ?>
+                                <option value="<?= htmlspecialchars($notion) ?>">
+                                    <?= htmlspecialchars($notion) ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
 
@@ -351,54 +395,139 @@ function quiz_option_value($question, $letter)
 
         <h2 class="quiz-existing-title">Questions existantes</h2>
 
+        <section class="quiz-admin-card">
+            <h2 class="quiz-section-title">Rechercher et filtrer</h2>
+
+            <div class="quiz-admin-grid">
+                <div>
+                    <label class="quiz-admin-label">Recherche</label>
+                    <input type="text" id="quizSearchInput" class="quiz-admin-input" placeholder="Rechercher une question, une proposition...">
+                </div>
+
+                <div>
+                    <label class="quiz-admin-label">Notion</label>
+                    <select id="quizNotionFilter" class="quiz-admin-select">
+                        <option value="">Toutes les notions</option>
+                        <?php foreach ($notions as $notion): ?>
+                            <option value="<?= htmlspecialchars($notion) ?>">
+                                <?= htmlspecialchars($notion) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="quiz-admin-label">Type</label>
+                    <select id="quizTypeFilter" class="quiz-admin-select">
+                        <option value="">Tous les types</option>
+                        <option value="qcm">QCM</option>
+                        <option value="text">Texte</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="quiz-admin-label">Statut</label>
+                    <select id="quizStatusFilter" class="quiz-admin-select">
+                        <option value="">Tous les statuts</option>
+                        <option value="1">Active</option>
+                        <option value="0">Inactive</option>
+                    </select>
+                </div>
+            </div>
+
+            <button type="button" id="quizResetFilters" class="quiz-admin-btn-secondary">
+                Réinitialiser les filtres
+            </button>
+        </section>
+
+        <div class="quiz-filter-info">
+            <span id="quizVisibleCount"><?= count($questions) ?></span> question(s) affichée(s) sur <?= count($questions) ?>.
+        </div>
+
         <?php if (empty($questions)): ?>
             <div class="quiz-admin-card">Aucune question trouvée.</div>
         <?php endif; ?>
 
-        <?php foreach ($questions as $index => $question): ?>
-            <div class="quiz-admin-card">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:18px;">
-                    <div>
-                        <h3 style="margin:0 0 6px; font-size:28px; color:#111827;">Question <?= $index + 1 ?></h3>
-                        <div class="quiz-chip-row">
-                            <span class="quiz-chip" style="background:#fff7ed; color:#c2410c;">
-                                <?= strtoupper(htmlspecialchars($question['question_type'])) ?>
-                            </span>
-                            <span class="quiz-chip" style="background:<?= !empty($question['is_active']) ? '#dcfce7' : '#e5e7eb' ?>; color:<?= !empty($question['is_active']) ? '#166534' : '#374151' ?>;">
-                                <?= !empty($question['is_active']) ? 'Active' : 'Inactive' ?>
-                            </span>
-                            <span class="quiz-chip" style="background:#f3f4f6; color:#374151;">
-                                Ordre : <?= (int)$question['position'] ?>
-                            </span>
+        <form method="POST" action="index.php?page=admin_bulk_update_questions" id="bulkUpdateQuestionsForm">
+            <?php foreach ($questions as $index => $question): ?>
+                <?php
+                    $searchText = strtolower(
+                        ($question['question_text'] ?? '') . ' ' .
+                        ($question['notion'] ?? '') . ' ' .
+                        ($question['question_type'] ?? '') . ' ' .
+                        implode(' ', array_map(static function ($option) {
+                            return $option['text'] ?? '';
+                        }, $question['options'] ?? []))
+                    );
+                ?>
+
+                <div
+                    class="quiz-admin-card js-question-card"
+                    data-search="<?= htmlspecialchars($searchText) ?>"
+                    data-notion="<?= htmlspecialchars($question['notion'] ?? 'Non classée') ?>"
+                    data-type="<?= htmlspecialchars($question['question_type'] ?? '') ?>"
+                    data-status="<?= !empty($question['is_active']) ? '1' : '0' ?>"
+                >
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:18px;">
+                        <div>
+                            <h3 style="margin:0 0 6px; font-size:28px; color:#111827;">Question <?= $index + 1 ?></h3>
+                            <div class="quiz-chip-row">
+                                <span class="quiz-chip" style="background:#fff7ed; color:#c2410c;">
+                                    <?= strtoupper(htmlspecialchars($question['question_type'])) ?>
+                                </span>
+
+                                <span class="quiz-chip" style="background:#e0f2fe; color:#075985;">
+                                    <?= htmlspecialchars($question['notion'] ?? 'Non classée') ?>
+                                </span>
+
+                                <span class="quiz-chip" style="background:<?= !empty($question['is_active']) ? '#dcfce7' : '#e5e7eb' ?>; color:<?= !empty($question['is_active']) ? '#166534' : '#374151' ?>;">
+                                    <?= !empty($question['is_active']) ? 'Active' : 'Inactive' ?>
+                                </span>
+
+                                <span class="quiz-chip" style="background:#f3f4f6; color:#374151;">
+                                    Ordre : <?= (int)$question['position'] ?>
+                                </span>
+                            </div>
                         </div>
+
+                        <button
+                            type="submit"
+                            form="delete-question-<?= (int)$question['id'] ?>"
+                            class="quiz-delete-btn"
+                            onclick="return confirm('Supprimer cette question ?');"
+                        >
+                            Supprimer
+                        </button>
                     </div>
-
-                    <form method="POST" action="index.php?page=admin_delete_question" onsubmit="return confirm('Supprimer cette question ?');" style="margin:0;">
-                        <input type="hidden" name="question_id" value="<?= (int)$question['id'] ?>">
-                        <button type="submit" class="quiz-delete-btn">Supprimer</button>
-                    </form>
-                </div>
-
-                <form method="POST" action="index.php?page=admin_update_question">
-                    <input type="hidden" name="question_id" value="<?= (int)$question['id'] ?>">
 
                     <div class="quiz-admin-grid">
                         <div>
                             <label class="quiz-admin-label">Type</label>
-                            <select name="question_type" class="quiz-admin-select">
+                            <select name="questions[<?= (int)$question['id'] ?>][question_type]" class="quiz-admin-select">
                                 <option value="qcm" <?= $question['question_type'] === 'qcm' ? 'selected' : '' ?>>QCM</option>
                                 <option value="text" <?= $question['question_type'] === 'text' ? 'selected' : '' ?>>Texte</option>
                             </select>
                         </div>
 
                         <div>
+                            <label class="quiz-admin-label">Notion</label>
+                            <select name="questions[<?= (int)$question['id'] ?>][notion]" class="quiz-admin-select">
+                                <?php foreach ($notions as $notion): ?>
+                                    <option value="<?= htmlspecialchars($notion) ?>" <?= (($question['notion'] ?? 'Non classée') === $notion) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($notion) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div>
                             <label class="quiz-admin-label">Ordre d'affichage</label>
-                            <input type="number" name="position" min="1" value="<?= (int)$question['position'] ?>" class="quiz-admin-input">
+                            <input type="number" name="questions[<?= (int)$question['id'] ?>][position]" min="1" value="<?= (int)$question['position'] ?>" class="quiz-admin-input">
                         </div>
 
                         <div>
                             <label class="quiz-admin-label">Statut</label>
-                            <select name="is_active" class="quiz-admin-select">
+                            <select name="questions[<?= (int)$question['id'] ?>][is_active]" class="quiz-admin-select">
                                 <option value="1" <?= !empty($question['is_active']) ? 'selected' : '' ?>>Active</option>
                                 <option value="0" <?= empty($question['is_active']) ? 'selected' : '' ?>>Inactive</option>
                             </select>
@@ -407,7 +536,7 @@ function quiz_option_value($question, $letter)
 
                     <div style="margin-bottom:16px;">
                         <label class="quiz-admin-label">Texte de la question</label>
-                        <textarea name="question_text" rows="3" class="quiz-admin-textarea"><?= htmlspecialchars($question['question_text']) ?></textarea>
+                        <textarea name="questions[<?= (int)$question['id'] ?>][question_text]" rows="3" class="quiz-admin-textarea"><?= htmlspecialchars($question['question_text']) ?></textarea>
                     </div>
 
                     <div class="question-image-uploader js-image-uploader">
@@ -422,8 +551,8 @@ function quiz_option_value($question, $letter)
                             </div>
 
                             <input type="file" accept="image/*" class="js-file-input" style="display:none;">
-                            <textarea name="image_data" class="js-image-data" style="display:none;"></textarea>
-                            <input type="hidden" name="remove_image" class="js-remove-image" value="0">
+                            <textarea name="questions[<?= (int)$question['id'] ?>][image_data]" class="js-image-data" style="display:none;"></textarea>
+                            <input type="hidden" name="questions[<?= (int)$question['id'] ?>][remove_image]" class="js-remove-image" value="0">
 
                             <div class="question-image-preview js-preview" style="<?= !empty($question['question_image']) ? 'display:block;' : 'display:none;' ?>">
                                 <img
@@ -441,7 +570,13 @@ function quiz_option_value($question, $letter)
                         <?php foreach (['a', 'b', 'c', 'd'] as $letter): ?>
                             <div>
                                 <label class="quiz-admin-label">Proposition <?= strtoupper($letter) ?></label>
-                                <input type="text" name="options[<?= $letter ?>]" value="<?= quiz_option_value($question, $letter) ?>" placeholder="Texte de la proposition <?= strtoupper($letter) ?>" class="quiz-admin-input">
+                                <input
+                                    type="text"
+                                    name="questions[<?= (int)$question['id'] ?>][options][<?= $letter ?>]"
+                                    value="<?= quiz_option_value($question, $letter) ?>"
+                                    placeholder="Texte de la proposition <?= strtoupper($letter) ?>"
+                                    class="quiz-admin-input"
+                                >
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -449,7 +584,7 @@ function quiz_option_value($question, $letter)
                     <div class="quiz-admin-grid">
                         <div>
                             <label class="quiz-admin-label">Bonne réponse QCM</label>
-                            <select name="correct_answer" class="quiz-admin-select">
+                            <select name="questions[<?= (int)$question['id'] ?>][correct_answer]" class="quiz-admin-select">
                                 <?php foreach (['a', 'b', 'c', 'd'] as $letter): ?>
                                     <option value="<?= $letter ?>" <?= ($question['correct_answer'] ?? '') === $letter ? 'selected' : '' ?>><?= strtoupper($letter) ?></option>
                                 <?php endforeach; ?>
@@ -458,7 +593,7 @@ function quiz_option_value($question, $letter)
 
                         <div>
                             <label class="quiz-admin-label">Réponses acceptées (question texte)</label>
-                            <textarea name="accepted_answers" rows="4" placeholder="Une réponse par ligne" class="quiz-admin-textarea"><?= htmlspecialchars(implode("\n", $question['accepted_answers_list'] ?? [])) ?></textarea>
+                            <textarea name="questions[<?= (int)$question['id'] ?>][accepted_answers]" rows="4" placeholder="Une réponse par ligne" class="quiz-admin-textarea"><?= htmlspecialchars(implode("\n", $question['accepted_answers_list'] ?? [])) ?></textarea>
                         </div>
                     </div>
 
@@ -480,17 +615,179 @@ function quiz_option_value($question, $letter)
                         <?php endif; ?>
                     </div>
 
-                    <button type="submit" class="quiz-admin-btn">Enregistrer les modifications</button>
-                </form>
-            </div>
+                    <div style="display:flex; justify-content:flex-end; margin-top:18px;">
+                        <button type="submit" class="quiz-admin-btn" onclick="return confirm('Enregistrer toutes les modifications effectuées ?');">
+                            Enregistrer les modifications
+                        </button>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </form>
+
+        <?php foreach ($questions as $question): ?>
+            <form id="delete-question-<?= (int)$question['id'] ?>" method="POST" action="index.php?page=admin_delete_question" style="display:none;">
+                <input type="hidden" name="question_id" value="<?= (int)$question['id'] ?>">
+            </form>
         <?php endforeach; ?>
     </div>
 </main>
 
 <script>
+    function initQuizFilters() {
+        const searchInput = document.getElementById('quizSearchInput');
+        const notionFilter = document.getElementById('quizNotionFilter');
+        const typeFilter = document.getElementById('quizTypeFilter');
+        const statusFilter = document.getElementById('quizStatusFilter');
+        const resetButton = document.getElementById('quizResetFilters');
+        const visibleCount = document.getElementById('quizVisibleCount');
+        const cards = Array.from(document.querySelectorAll('.js-question-card'));
+
+        function normalize(value) {
+            return (value || '')
+                .toString()
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .trim();
+        }
+
+        function applyFilters() {
+            const search = normalize(searchInput ? searchInput.value : '');
+            const notion = notionFilter ? notionFilter.value : '';
+            const type = typeFilter ? typeFilter.value : '';
+            const status = statusFilter ? statusFilter.value : '';
+
+            let count = 0;
+
+            cards.forEach(function (card) {
+                const cardSearch = normalize(card.dataset.search || '');
+                const cardNotion = card.dataset.notion || '';
+                const cardType = card.dataset.type || '';
+                const cardStatus = card.dataset.status || '';
+
+                const matchSearch = search === '' || cardSearch.includes(search);
+                const matchNotion = notion === '' || cardNotion === notion;
+                const matchType = type === '' || cardType === type;
+                const matchStatus = status === '' || cardStatus === status;
+
+                const visible = matchSearch && matchNotion && matchType && matchStatus;
+
+                card.classList.toggle('quiz-hidden', !visible);
+
+                if (visible) {
+                    count++;
+                }
+            });
+
+            if (visibleCount) {
+                visibleCount.textContent = count;
+            }
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('input', applyFilters);
+        }
+
+        if (notionFilter) {
+            notionFilter.addEventListener('change', applyFilters);
+        }
+
+        if (typeFilter) {
+            typeFilter.addEventListener('change', applyFilters);
+        }
+
+        if (statusFilter) {
+            statusFilter.addEventListener('change', applyFilters);
+        }
+
+        if (resetButton) {
+            resetButton.addEventListener('click', function () {
+                if (searchInput) searchInput.value = '';
+                if (notionFilter) notionFilter.value = '';
+                if (typeFilter) typeFilter.value = '';
+                if (statusFilter) statusFilter.value = '';
+                applyFilters();
+            });
+        }
+
+        applyFilters();
+    }
+
+    function initDirtyQuestionTracking() {
+        const form = document.getElementById('bulkUpdateQuestionsForm');
+
+        if (!form) {
+            return;
+        }
+
+        const questionCards = Array.from(document.querySelectorAll('.js-question-card'));
+
+        questionCards.forEach(function (card) {
+            card.dataset.dirty = '0';
+
+            const fields = card.querySelectorAll('input, select, textarea');
+
+            fields.forEach(function (field) {
+                if (field.type === 'file') {
+                    return;
+                }
+
+                field.dataset.originalValue = field.value;
+
+                field.addEventListener('input', function () {
+                    card.dataset.dirty = '1';
+                });
+
+                field.addEventListener('change', function () {
+                    card.dataset.dirty = '1';
+                });
+            });
+        });
+
+        form.addEventListener('submit', function (event) {
+            const dirtyCards = questionCards.filter(function (card) {
+                return card.dataset.dirty === '1';
+            });
+
+            if (dirtyCards.length === 0) {
+                event.preventDefault();
+                alert('Aucune modification détectée.');
+                return;
+            }
+
+            const confirmed = confirm(
+                'Enregistrer ' + dirtyCards.length + ' question(s) modifiée(s) ?'
+            );
+
+            if (!confirmed) {
+                event.preventDefault();
+                return;
+            }
+
+            questionCards.forEach(function (card) {
+                const isDirty = card.dataset.dirty === '1';
+                const fields = card.querySelectorAll('input, select, textarea');
+
+                fields.forEach(function (field) {
+                    if (!isDirty) {
+                        field.disabled = true;
+                    }
+                });
+            });
+        });
+    }
+
     function initQuestionImageUploaders() {
         const uploaders = document.querySelectorAll('.js-image-uploader');
         let activeUploader = null;
+
+        function markUploaderDirty(uploader) {
+            const card = uploader.closest('.js-question-card');
+
+            if (card) {
+                card.dataset.dirty = '1';
+            }
+        }
 
         uploaders.forEach(function (uploader) {
             const dropzone = uploader.querySelector('.js-dropzone');
@@ -522,6 +819,7 @@ function quiz_option_value($question, $letter)
                 imageDataField.value = '';
                 fileInput.value = '';
                 removeImageField.value = markAsRemoved ? '1' : '0';
+                markUploaderDirty(uploader);
             }
 
             function loadFile(file) {
@@ -546,6 +844,7 @@ function quiz_option_value($question, $letter)
                     imageDataField.value = result;
                     removeImageField.value = '0';
                     showPreview(result);
+                    markUploaderDirty(uploader);
                 };
 
                 reader.readAsDataURL(file);
@@ -672,10 +971,13 @@ function quiz_option_value($question, $letter)
                     const result = e.target.result || '';
                     imageDataField.value = result;
                     removeImageField.value = '0';
+
                     if (fileInput) {
                         fileInput.value = '';
                     }
+
                     showPreview(result);
+                    markUploaderDirty(activeUploader);
                 };
 
                 reader.readAsDataURL(file);
@@ -700,7 +1002,11 @@ function quiz_option_value($question, $letter)
         });
     }
 
-    document.addEventListener('DOMContentLoaded', initQuestionImageUploaders);
+    document.addEventListener('DOMContentLoaded', function () {
+        initQuizFilters();
+        initDirtyQuestionTracking();
+        initQuestionImageUploaders();
+    });
 </script>
 
 <?php require __DIR__ . '/partials/footer.php'; ?>

@@ -26,6 +26,7 @@ class QuizQuestion
                 question_text TEXT NOT NULL,
                 question_image VARCHAR(255) DEFAULT NULL,
                 question_type VARCHAR(20) NOT NULL DEFAULT 'qcm',
+                notion VARCHAR(150) NOT NULL DEFAULT 'Non classée',
                 correct_answer VARCHAR(255) DEFAULT NULL,
                 accepted_answers TEXT DEFAULT NULL,
                 position INT NOT NULL DEFAULT 0,
@@ -58,6 +59,13 @@ class QuizQuestion
         if (!$column) {
             $this->pdo->exec("ALTER TABLE quiz_questions ADD COLUMN question_image VARCHAR(255) DEFAULT NULL AFTER question_text");
         }
+
+        $stmt = $this->pdo->query("SHOW COLUMNS FROM quiz_questions LIKE 'notion'");
+        $column = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$column) {
+            $this->pdo->exec("ALTER TABLE quiz_questions ADD COLUMN notion VARCHAR(150) NOT NULL DEFAULT 'Non classée' AFTER question_type");
+        }
     }
 
     private function createUploadDirectory()
@@ -81,6 +89,7 @@ class QuizQuestion
             [
                 'question_text' => 'Quelle est la capitale de la France ?',
                 'question_type' => 'qcm',
+                'notion' => 'Non classée',
                 'correct_answer' => 'c',
                 'position' => 1,
                 'options' => [
@@ -93,6 +102,7 @@ class QuizQuestion
             [
                 'question_text' => 'Combien font 2 + 2 ?',
                 'question_type' => 'qcm',
+                'notion' => 'Non classée',
                 'correct_answer' => 'b',
                 'position' => 2,
                 'options' => [
@@ -105,6 +115,7 @@ class QuizQuestion
             [
                 'question_text' => 'Quel mot-clé SQL permet de récupérer des données ?',
                 'question_type' => 'qcm',
+                'notion' => 'SQL - Requêtes et logique',
                 'correct_answer' => 'd',
                 'position' => 3,
                 'options' => [
@@ -117,6 +128,7 @@ class QuizQuestion
             [
                 'question_text' => 'Quel type de test vérifie le bon fonctionnement global d’une fonctionnalité côté utilisateur ?',
                 'question_type' => 'qcm',
+                'notion' => 'Gestion de projet - Agile et Cycle en V',
                 'correct_answer' => 'b',
                 'position' => 4,
                 'options' => [
@@ -129,6 +141,7 @@ class QuizQuestion
             [
                 'question_text' => 'Écris uniquement le chiffre 1 dans la zone de texte.',
                 'question_type' => 'text',
+                'notion' => 'Non classée',
                 'accepted_answers' => "1",
                 'position' => 5,
                 'options' => [],
@@ -145,22 +158,39 @@ class QuizQuestion
         return $this->getQuestions(false);
     }
 
+    public function getActiveQuestionsByNotion($notion)
+    {
+        return $this->getQuestions(false, $notion);
+    }
+
     public function getAllQuestions()
     {
         return $this->getQuestions(true);
     }
 
-    private function getQuestions($includeInactive)
+    private function getQuestions($includeInactive, $notion = null)
     {
         $sql = "SELECT * FROM quiz_questions";
+        $conditions = [];
+        $params = [];
 
         if (!$includeInactive) {
-            $sql .= " WHERE is_active = 1";
+            $conditions[] = "is_active = 1";
+        }
+
+        if ($notion !== null && trim((string)$notion) !== '') {
+            $conditions[] = "notion = ?";
+            $params[] = trim((string)$notion);
+        }
+
+        if (!empty($conditions)) {
+            $sql .= " WHERE " . implode(" AND ", $conditions);
         }
 
         $sql .= " ORDER BY position ASC, id ASC";
 
-        $stmt = $this->pdo->query($sql);
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
         $questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         if (empty($questions)) {
@@ -188,6 +218,7 @@ class QuizQuestion
         }
 
         foreach ($questions as &$question) {
+            $question['notion'] = $question['notion'] ?? 'Non classée';
             $question['options'] = $optionsByQuestion[$question['id']] ?? [];
             $question['accepted_answers_list'] = $this->decodeAcceptedAnswers($question['accepted_answers'] ?? null);
         }
@@ -213,6 +244,8 @@ class QuizQuestion
              ORDER BY FIELD(option_key, 'a', 'b', 'c', 'd', 'e', 'f'), id ASC"
         );
         $optionStmt->execute(['question_id' => $id]);
+
+        $question['notion'] = $question['notion'] ?? 'Non classée';
 
         $question['options'] = array_map(static function ($row) {
             return [
@@ -240,14 +273,15 @@ class QuizQuestion
 
         try {
             $stmt = $this->pdo->prepare(
-                "INSERT INTO quiz_questions (question_text, question_image, question_type, correct_answer, accepted_answers, position, is_active)
-                 VALUES (:question_text, :question_image, :question_type, :correct_answer, :accepted_answers, :position, :is_active)"
+                "INSERT INTO quiz_questions (question_text, question_image, question_type, notion, correct_answer, accepted_answers, position, is_active)
+                 VALUES (:question_text, :question_image, :question_type, :notion, :correct_answer, :accepted_answers, :position, :is_active)"
             );
 
             $stmt->execute([
                 'question_text' => $payload['question_text'],
                 'question_image' => $savedImagePath,
                 'question_type' => $payload['question_type'],
+                'notion' => $payload['notion'],
                 'correct_answer' => $payload['correct_answer'],
                 'accepted_answers' => $payload['accepted_answers'],
                 'position' => $payload['position'],
@@ -310,6 +344,7 @@ class QuizQuestion
                  SET question_text = :question_text,
                      question_image = :question_image,
                      question_type = :question_type,
+                     notion = :notion,
                      correct_answer = :correct_answer,
                      accepted_answers = :accepted_answers,
                      position = :position,
@@ -322,6 +357,7 @@ class QuizQuestion
                 'question_text' => $payload['question_text'],
                 'question_image' => $finalImagePath,
                 'question_type' => $payload['question_type'],
+                'notion' => $payload['notion'],
                 'correct_answer' => $payload['correct_answer'],
                 'accepted_answers' => $payload['accepted_answers'],
                 'position' => $payload['position'],
@@ -391,6 +427,7 @@ class QuizQuestion
     {
         $questionText = trim((string)($data['question_text'] ?? ''));
         $questionType = trim((string)($data['question_type'] ?? 'qcm'));
+        $notion = trim((string)($data['notion'] ?? 'Non classée'));
         $position = isset($data['position']) ? (int)$data['position'] : $this->getNextPosition();
         $isActive = isset($data['is_active']) ? (int)$data['is_active'] : 1;
         $imageData = trim((string)($data['image_data'] ?? ''));
@@ -404,6 +441,10 @@ class QuizQuestion
             throw new InvalidArgumentException('Le type de question est invalide.');
         }
 
+        if ($notion === '') {
+            $notion = 'Non classée';
+        }
+
         if ($position <= 0) {
             $position = $this->getNextPosition();
         }
@@ -411,6 +452,7 @@ class QuizQuestion
         $normalized = [
             'question_text' => $questionText,
             'question_type' => $questionType,
+            'notion' => $notion,
             'correct_answer' => null,
             'accepted_answers' => null,
             'position' => $position,

@@ -23,9 +23,8 @@ $initial = mb_strtoupper(mb_substr($displayName, 0, 1, 'UTF-8'), 'UTF-8');
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QCM Iteam Quality</title>
-  <link rel="stylesheet" href="assets/css/main.css">
-  <link rel="stylesheet" href="assets/css/home.css">
-  <link rel="stylesheet" href="assets/css/auth.css">
+<link rel="stylesheet" href="./assets/css/main.css?v=<?= time() ?>">
+<link rel="stylesheet" href="./assets/css/auth.css?v=<?= time() ?>">
 </head>
 <body>
   <header class="navbar">
@@ -64,6 +63,7 @@ $initial = mb_strtoupper(mb_substr($displayName, 0, 1, 'UTF-8'), 'UTF-8');
           <?php if ($isAdmin): ?>
             <a href="index.php?page=quiz_preview" class="dropdown-link">Gérer le quiz</a>
             <a href="index.php?page=admin_access_keys" class="dropdown-link">Clés d'accès</a>
+            <a href="index.php?page=admin_test_codes" class="dropdown-link">Mots de passe des tests</a>
             <a href="index.php?page=admin_users" class="dropdown-link">Gestion des utilisateurs</a>
             <a href="index.php?page=admin_results" class="dropdown-link">Résultats</a>
             <a href="index.php?page=admin_stats" class="dropdown-link">Statistiques</a>
